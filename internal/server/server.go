@@ -1,8 +1,12 @@
 package server
 import (
+ "io"
  "context"
- api "github.com/masanonu/proglog/api/v1"
+ "errors"
+ api "github.com/travisjeffery/proglog/api/v1"
  "google.golang.org/grpc"
+ "google.golang.org/grpc/status"
+ "google.golang.org/grpc/codes"
 )
 type Config struct {
  CommitLog CommitLog
@@ -26,16 +30,25 @@ type CommitLog interface {
  Read(uint64) (*api.Record, error)
 }
 func newgrpcServer(config *Config) (srv *grpcServer, err error) {
+ if config == nil {
+  panic("config is nil")
+ }
+ if config.CommitLog == nil {
+  panic("CommitLog is nil")
+ }
  srv = &grpcServer{
-  Config: config,
+ Config: config,
  }
  return srv, nil
 }
 func (s *grpcServer) Produce(ctx context.Context, req *api.ProduceRequest) (
  *api.ProduceResponse, error) {
+  if s.CommitLog == nil{
+   panic("CommitLog is nil")
+  }
   offset, err := s.CommitLog.Append(req.Record)
   if err != nil {
-   return nil, err
+   return nil, status.Error(codes.Internal, err.Error())
   }
   return &api.ProduceResponse{Offset: offset}, nil
 }
@@ -43,7 +56,11 @@ func (s *grpcServer) Consume(ctx context.Context, req *api.ConsumeRequest) (
  *api.ConsumeResponse, error) {
   record, err := s.CommitLog.Read(req.Offset)
   if err != nil {
-   return nil, err
+   var outOfRange api.ErrOffsetOutOfRange
+   if errors.As(err, &outOfRange) {
+    return nil, status.Error(codes.OutOfRange, err.Error())
+   }
+   return nil, status.Error(codes.Internal, err.Error())
   }
   return &api.ConsumeResponse{Record: record}, nil
 }
@@ -52,6 +69,9 @@ func (s *grpcServer) ProduceStream(
  ) error {
   for {
    req, err := stream.Recv()
+   if err == io.EOF {
+    return nil
+   }
    if err != nil {
     return err
    }
@@ -59,7 +79,10 @@ func (s *grpcServer) ProduceStream(
    if err != nil {
     return err
    }
-   if err = stream.Send(res); err != nil {
+   if res == nil {
+    return status.Error(codes.Internal, "nil response")
+   }
+   if err := stream.Send(res); err != nil {
     return err
    }
   }
@@ -69,22 +92,14 @@ func (s *grpcServer) ConsumeStream(
  stream api.Log_ConsumeStreamServer,
  ) error {
   for {
-   select {
-    case <-stream.Context().Done():
-     return nil
-    default:
      res, err := s.Consume(stream.Context(), req)
-     switch err.(type) {
-     case nil:
-     case api.ErrOffsetOutOfRange:
-      continue
-     default:
+     if err != nil {
       return err
      }
-     if err = stream.Send(res); err != nil {
-      return err
+     if res == nil {
+      return status.Error(codes.Internal, "nil response")
      }
-     req.Offset++
-    }
+     if err := stream.Send(res); err != nil { return err }
+   req.Offset++
   }
 }

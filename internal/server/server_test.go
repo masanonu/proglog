@@ -5,27 +5,28 @@ import (
  "os"
  "testing"
  "github.com/stretchr/testify/require"
- api "github.com/masanonu/proglog/api/v1"
- "github.com/masanonu/proglog/internal/log"
- "github.com/masanonu/proglog/internal/config"
+ api "github.com/travisjeffery/proglog/api/v1"
+ "github.com/travisjeffery/proglog/internal/log"
+ "github.com/travisjeffery/proglog/internal/config"
  "google.golang.org/grpc"
  "google.golang.org/grpc/credentials"
- "google.golang.org/grpc/credentials/insecure"
+// "google.golang.org/grpc/credentials/insecure"
+ "google.golang.org/grpc/codes"
  "google.golang.org/grpc/status"
 )
 func TestServer(t *testing.T) {
  for scenario, fn := range map[string]func(
   t *testing.T,
   client api.LogClient,
-  config *Config,
- ) {
+  cfg *Config,
+) {
   "produce/consume a message to/from the log succeeeds":
    testProduceConsume,
   "produce/consume stream succeeds":
    testProduceConsumeStream,
   "consume past log boundary fails":
    testConsumePastBoundary,
-  ) {
+  } {
    t.Run(scenario, func(t *testing.T) {
     client, config, teardown := setupTest(t, nil)
     defer teardown()
@@ -88,7 +89,7 @@ func setupTest(t *testing.T, fn func(*Config)) (
 //  clog.Remove()
  }
 }
-func testProduceConsume(t *testing.T, client api.LogClient, config *Config) {
+func testProduceConsume(t *testing.T, client api.LogClient, cfg *Config,) {
  ctx := context.Background()
  want := &api.Record{
   Value: []byte("Hello, World!"),
@@ -111,7 +112,7 @@ func testProduceConsume(t *testing.T, client api.LogClient, config *Config) {
 func testConsumePastBoundary(
  t *testing.T,
  client api.LogClient,
- config *Config,
+ cfg *Config,
 ) {
  ctx := context.Background()
  produce, err := client.Produce(ctx, &api.ProduceRequest{
@@ -127,7 +128,8 @@ func testConsumePastBoundary(
   t.Fatal("consume not nil")
  }
  got := status.Code(err)
- want := status.Code(api.ErrOffsetOutOfRange{}.GRPCStatus().Err())
+/**  want := status.Code(api.ErrOffsetOutOfRange{}.GRPCStatus().Err()) **/
+  want := codes.OutOfRange
  if got != want {
   t.Fatalf("got err: %v, want: %v", got, want)
  }
@@ -135,7 +137,7 @@ func testConsumePastBoundary(
 func testProduceConsumeStream(
  t *testing.T,
  client api.LogClient,
- config *Config,
+ cfg *Config,
 ) {
  ctx := context.Background()
  records := []*api.Record{{
