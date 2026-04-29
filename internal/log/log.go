@@ -1,6 +1,6 @@
 package log
 import (
- "fmt"
+// "fmt"
  "io"
  "os"
  "path"
@@ -8,7 +8,7 @@ import (
  "strconv"
  "strings"
  "sync"
- api "github.com/masanonu/proglog/api/v1"
+ api "github.com/travisjeffery/proglog/api/v1"
 )
 type Log struct {
  mu sync.RWMutex
@@ -23,7 +23,7 @@ func NewLog(dir string, c Config) (*Log, error) {
  }
  if c.Segment.MaxIndexBytes == 0 {
   c.Segment.MaxIndexBytes = 1024
- }
+   }
  l := &Log{
   Dir:	dir,
   Config: c,
@@ -91,9 +91,13 @@ func (l *Log) Read(off uint64) (*api.Record, error) {
    break
   }
  }
- if s == nil || s.nextOffset <= off {
- /** return nil, fmt.Errorf("offset out of range: %d", off) **/
-  return nil, api.ErrOffsetOutOfRange{offset: off}
+/** if s == nil || s.nextOffset <= off {
+      return nil, fmt.Errorf("offset out of range: %d", off) **/
+ if s == nil || off >= s.nextOffset {
+//  return nil, fmt.Errorf("offset out of range: %d", off)
+/**  return nil,api.ErrOffsetOutOfRange{offset: off} **/
+// }
+   return nil, api.ErrOffsetOutOfRange{Offset: off}
  }
  return s.Read(off)
 }
@@ -122,7 +126,7 @@ func (l *Log) Reset() error {
 func (l *Log) LowestOffset() (uint64, error) {
  l.mu.RLock()
  defer l.mu.RUnlock()
- return l.segment[0].baseOffset, nil
+ return l.segments[0].baseOffset, nil
 }
 func (l *Log) HighestOffset() (uint64, error) {
  l.mu.RLock()

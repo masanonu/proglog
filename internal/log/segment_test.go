@@ -4,14 +4,15 @@ import (
  "os"
  "testing"
  "github.com/stretchr/testify/require"
- api "github.com/masanonu/proglog/api/v1"
+ api "github.com/travisjeffery/proglog/api/v1"
  "google.golang.org/protobuf/proto"
 )
 func TestSegment(t *testing.T) {
  dir, _ := os.MkdirTemp("", "segment-test")
+/**  s, err := newSegment()
+ require.NoError(t, err)
+**/
  defer os.RemoveAll(dir)
-
- want := &api.Record{Value: []byte("Hello, world!")}
 
  c := Config{}
  c.Segment.MaxStoreBytes = 1024
@@ -19,6 +20,9 @@ func TestSegment(t *testing.T) {
 
  s, err := newSegment(dir, 16, c)
  require.NoError(t, err)
+
+ want := &api.Record{Value: []byte("Hello, world!")}
+
  require.Equal(t, uint64(16), s.nextOffset)
  require.False(t, s.IsMaxed())
 
